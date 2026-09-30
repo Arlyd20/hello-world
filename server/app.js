@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import catalogRoutes from './routes/catalog.js';
 import userDataRoutes from './routes/user-data.js';
 import { pool } from './db.js';
@@ -11,11 +13,18 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173,ht
   .map((origin) => origin.trim());
 
 app.disable('x-powered-by');
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+app.set('trust proxy', true);
+app.use(cors((request, callback) => {
+  const origin = request.get('Origin');
+  if (!origin) return callback(null, { origin: false });
+  try {
+    const parsedOrigin = new URL(origin);
+    const isSameOrigin = parsedOrigin.host === request.get('host') && parsedOrigin.protocol === `${request.protocol}:`;
+    if (allowedOrigins.includes(origin) || isSameOrigin) return callback(null, { origin: true });
+  } catch {
     return callback(new Error('Origin is not allowed.'));
   }
+  return callback(new Error('Origin is not allowed.'));
 }));
 app.use(express.json({ limit: '20kb' }));
 
@@ -31,6 +40,16 @@ app.get('/api/health', async (_request, response) => {
 app.use('/api', catalogRoutes);
 app.use('/api', userDataRoutes);
 app.use('/api', (_request, response) => response.status(404).json({ error: 'API route not found.' }));
+
+const frontendDirectory = path.resolve(process.cwd(), 'dist');
+app.use(express.static(frontendDirectory));
+app.use((request, response, next) => {
+  if (request.method !== 'GET' || request.path.startsWith('/api/')) return next();
+  const indexFile = path.join(frontendDirectory, 'index.html');
+  if (existsSync(indexFile)) return response.sendFile(indexFile);
+  return next();
+});
+app.use((_request, response) => response.status(404).json({ error: 'Route not found.' }));
 
 app.use((error, _request, response, _next) => {
   if (response.headersSent) return;

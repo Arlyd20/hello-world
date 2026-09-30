@@ -47,6 +47,28 @@ npm run dev
 
 Open the Vite URL printed in the frontend terminal. The API also remains available when MySQL is down and returns a friendly `503` from `/api/health` until the database is ready.
 
+## Publish on Railway
+
+The repository includes a multi-stage `Dockerfile` and `railway.json`. One Railway service builds the Vite site and serves it with Express; a Railway MySQL service provides the database.
+
+1. Push this repository to GitHub and create a Railway project from `Arlyd20/Hello-World` using the `main` branch. Railway detects the Dockerfile.
+2. Add a MySQL service to the same Railway project.
+3. In the app service, add these variables using Railway's reference picker for the MySQL service (shown as `MySQL` below):
+
+	```env
+	DB_HOST=${{MySQL.MYSQLHOST}}
+	DB_PORT=${{MySQL.MYSQLPORT}}
+	DB_USER=${{MySQL.MYSQLUSER}}
+	DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
+	DB_NAME=${{MySQL.MYSQLDATABASE}}
+	```
+
+4. Open the app service shell and run `npm run db:setup` once to create the tables and seed sample destinations. The service health check uses `/api/health`.
+5. Generate a Railway public domain for the app service. The frontend and API share this domain; if deploying a separate frontend, set `FRONTEND_ORIGIN` to its exact HTTPS origin.
+6. Add the generated public URL to the Hello World project card in the portfolio repository, then publish the portfolio changes through GitHub Pages.
+
+Do not commit database credentials. Enter them only as Railway service variables; no database secret is exposed to Vite/browser code.
+
 ## API
 
 - `GET /api/health`
